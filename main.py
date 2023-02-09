@@ -11,7 +11,7 @@ from decoder import Decoder
 from utils import *
 import argparse
 from train_hybrid import Trainer
-
+import wandb
 
 
 parser = argparse.ArgumentParser()
@@ -37,7 +37,7 @@ parser.add_argument(
     "--lr1",
     help="Learning rate of latent code weight",
     type=float,
-    default=2e-4,
+    default=1e-4,
 )
 parser.add_argument(
     "--dim_hidden",
@@ -88,6 +88,43 @@ parser.add_argument(
     type=float,
     default=0.018,
 )
+parser.add_argument(
+    "--use_positional_info",
+    type=int,
+    default=1,
+)
+
+parser.add_argument(
+    "--positional_freq",
+    type=int,
+    default=10,
+)
+# Wandb arguments
+parser.add_argument(
+    "--use_wandb",
+    type=int,
+    default=1,
+)
+
+parser.add_argument(
+    "--wandb_project_name",
+    type=str,
+    default="Hybrid",
+)
+
+parser.add_argument(
+    "--wandb_entity",
+    type=str,
+    default="intbear",
+)
+
+parser.add_argument(
+    "--wandb_job_type",
+    help="Wandb job type. This is useful for grouping runs together.",
+    type=str,
+    default=None,
+)
+
 args = parser.parse_args()
 dtype = torch.float32
 device = torch.device('cuda:2' if torch.cuda.is_available() else 'cpu')
@@ -97,6 +134,15 @@ torch.set_default_tensor_type('torch.cuda.FloatTensor' if torch.cuda.is_availabl
 torch.manual_seed(args.seed)
 torch.cuda.manual_seed_all(args.seed)
 
+if args.use_wandb:
+    # Initialize wandb experiment
+    wandb.init(
+        settings=wandb.Settings(start_method="fork"),
+        project=args.wandb_project_name,
+        entity=args.wandb_entity,
+        job_type=args.wandb_job_type,
+        config=args,
+    )
 if args.full_dataset:
     min_id, max_id = 1, 24  # Kodak dataset runs from kodim01.png to kodim24.png
 else:
@@ -110,11 +156,15 @@ for i in range(min_id, max_id + 1):
     print(f'Image {i}')
 
     # Load Image
-    img = imageio.imread(f"/media/D/dataset/kodak_test/kodim{str(i).zfill(2)}.png")
+    img = imageio.imread(f"/media/Dataset/kodak/kodim{str(i).zfill(2)}.png")
     img = transforms.ToTensor()(img).float().to(device, dtype)
     C, H, W = img.shape
     # Set up model
-    decoder = Decoder(L, args.dim_hidden, args.num_layers, device, 18).to(device)
+    if args.use_positional_info:
+        _, out_dim = get_positional_embedder(args.positional_freq, True)
+    else:
+        out_dim = 0
+    decoder = Decoder(args, device, out_dim).to(device)
     # varied learning rate
     code_length = int((H * W) * (4 / 3) * (1 - (1 / 4 ** L)))
     lat_layer = torch.nn.Embedding(1, code_length, max_norm=1)

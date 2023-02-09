@@ -3,7 +3,8 @@ import tqdm
 from collections import OrderedDict
 from utils import *
 from torchvision.utils import save_image
-
+import wandb
+from decoder import Decoder
 
 class LearningRateSchedule:
     def get_learning_rate(self, epoch):
@@ -86,17 +87,20 @@ class Trainer():
         """
         C, H, W = self.image.shape
         cords, features = to_CordsAndValues(self.image, self.device)
-        embedder, out_dim = get_positional_embedder(4, True)
-        embedder = embedder.to(self.device)
-        p_inf = embedder(cords)
-        p_inf = p_inf.reshape(H, W, out_dim)
+        if self.args.use_positional_info:
+            embedder, out_dim = get_positional_embedder(self.args.positional_freq, True)
+            embedder = embedder.to(self.device)
+            p_inf = embedder(cords)
+            p_inf = p_inf.reshape(H, W, out_dim)
+        # decoder = Decoder(self.args.L, self.device, out_dim).to(self.device)
         indices = torch.LongTensor([0]).to(self.device)
         with tqdm.trange(num_iters, ncols=250) as t:
             for i in t:
                 self.optimizer_all.zero_grad()
                 latents = self.lat_layer(indices).squeeze()
                 y, z = self.decoder.get_features(latents, self.image)
-                z = torch.cat((z, p_inf), 2)
+                if self.args.use_positional_info:
+                    z = torch.cat((z, p_inf), 2)
                 # Update model
                 predicted = self.decoder(z)
                 # bpp = self.decoder.cul_bpp(y)
@@ -118,7 +122,8 @@ class Trainer():
                 # for key in ['loss', 'psnr', 'bpp']:
                 for key in ['loss', 'psnr']:
                     self.logs[key].append(log_dict[key])
-
+                if self.args.use_wandb:
+                    wandb.log(log_dict, step=i)
                 # Update best values
                 if loss["loss"] < self.best_vals['loss']:
                     self.best_vals['loss'] = loss["loss"]

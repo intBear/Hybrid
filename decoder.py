@@ -33,12 +33,11 @@ class MaskedConv2d(nn.Conv2d):
 
 
 class Decoder(nn.Module):
-	def __init__(self, L, dim_hidden, num_layers, device, out_dim):
+	def __init__(self, args, device, out_dim):
 		super().__init__()
-		self.L = L
-		self.dim_hidden = dim_hidden
-		self.num_layers = num_layers
-		self.mlp = SynthesisTransform(L+out_dim, dim_hidden, num_layers)
+		self.args = args
+		self.L = args.L
+		self.mlp = SynthesisTransform(args.L+out_dim, args.dim_hidden, args.num_layers)
 		self.context_model = MaskedConv2d(1, 2, kernel_size=5, padding=2, stride=1)
 		self.laplace_conditional = LaplaceConditional(None)
 		self.lower_bound_scale = LowerBound(0.11)
