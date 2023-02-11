@@ -6,9 +6,11 @@ from torchvision.utils import save_image
 import wandb
 from decoder import Decoder
 
+
 class LearningRateSchedule:
     def get_learning_rate(self, epoch):
         pass
+
 
 class StepLearningRateSchedule(LearningRateSchedule):
     def __init__(self, initial, interval, factor):
@@ -19,6 +21,7 @@ class StepLearningRateSchedule(LearningRateSchedule):
     def get_learning_rate(self, epoch):
 
         return self.initial * (self.factor ** (epoch // self.interval))
+
 
 def get_learning_rate_schedules(args):
     schedules = []
@@ -33,7 +36,7 @@ class Trainer():
             image,
             decoder,
             rd_losses,
-            lat_layer,
+            lat,
             args,
             print_freq=1,
     ):
@@ -55,12 +58,12 @@ class Trainer():
                 "lr": args.lr0,
             },
             {
-                "params": lat_layer.parameters(),
+                "params": lat,
                 "lr": args.lr1,
             },
         ])
         self.rd_losses = rd_losses
-        self.lat_layer = lat_layer
+        self.lat = lat
         if self.args.resume:
             path_checkpoint = "./models/checkpoint/L1_check.pth"
             checkpoint = torch.load(path_checkpoint)
@@ -93,12 +96,10 @@ class Trainer():
             p_inf = embedder(cords)
             p_inf = p_inf.reshape(H, W, out_dim)
         # decoder = Decoder(self.args.L, self.device, out_dim).to(self.device)
-        indices = torch.LongTensor([0]).to(self.device)
         with tqdm.trange(num_iters, ncols=250) as t:
             for i in t:
                 self.optimizer_all.zero_grad()
-                latents = self.lat_layer(indices).squeeze()
-                y, z = self.decoder.get_features(latents, self.image)
+                y, z = self.decoder.get_features(self.lat, self.image)
                 if self.args.use_positional_info:
                     z = torch.cat((z, p_inf), 2)
                 # Update model
@@ -106,7 +107,7 @@ class Trainer():
                 # bpp = self.decoder.cul_bpp(y)
                 # loss = self.rd_losses.output(predicted, features, bpp)
                 loss = self.rd_losses.output(predicted, features)
-                loss["psnr"] = mse2psnr(loss["mse_loss"])
+                loss["psnr"] = get_clamped_psnr(features, predicted)
                 loss["loss"] = loss["mse_loss"]
                 loss["mse_loss"].backward()
                 self.optimizer_all.step()

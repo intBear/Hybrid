@@ -5,7 +5,7 @@
       <webServer id="ae53b7bb-d303-4e13-86bd-3f289a77738c" name="8GPU">
         <fileTransfer accessType="SFTP" host="10.112.15.105" port="10708" sshConfigId="8568e4da-2fde-40b7-b2e7-739b4d9fe9f4" sshConfig="zym@10.112.15.105:10708 password">
           <advancedOptions>
-            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+            <advancedOptions dataProtectionLevel="Private" passiveMode="true" shareSSLContext="true" />
           </advancedOptions>
         </fileTransfer>
       </webServer>

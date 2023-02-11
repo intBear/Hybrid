@@ -38,7 +38,7 @@ class Decoder(nn.Module):
 		self.args = args
 		self.L = args.L
 		self.mlp = SynthesisTransform(args.L+out_dim, args.dim_hidden, args.num_layers)
-		self.context_model = MaskedConv2d(1, 2, kernel_size=5, padding=2, stride=1)
+		# self.context_model = MaskedConv2d(1, 2, kernel_size=5, padding=2, stride=1)
 		self.laplace_conditional = LaplaceConditional(None)
 		self.lower_bound_scale = LowerBound(0.11)
 		self.device = device
@@ -68,17 +68,17 @@ class Decoder(nn.Module):
 		z = torch.movedim(z, 0, 2)
 		return y, z
 
-	def cul_bpp(self, y):
-		bpp = 0
-		for f_layer in y:
-			N, _, H, W = f_layer.size()
-			num_pixels = N * H * W
-			ctx_params = self.context_model(f_layer)
-			scales, means = ctx_params.chunk(2, 1)
-			scales = self.lower_bound_scale(scales)
-			_, y_likelihoods = self.laplace_conditional(f_layer, scales, means=means)
-			bpp += torch.log(y_likelihoods).sum() / (-math.log(2) * num_pixels)
-		return bpp
+	# def cul_bpp(self, y):
+	# 	bpp = 0
+	# 	for f_layer in y:
+	# 		N, _, H, W = f_layer.size()
+	# 		num_pixels = N * H * W
+	# 		ctx_params = self.context_model(f_layer)
+	# 		scales, means = ctx_params.chunk(2, 1)
+	# 		scales = self.lower_bound_scale(scales)
+	# 		_, y_likelihoods = self.laplace_conditional(f_layer, scales, means=means)
+	# 		bpp += torch.log(y_likelihoods).sum() / (-math.log(2) * num_pixels)
+	# 	return bpp
 
 	def forward(self, z):
 		return self.mlp(z)

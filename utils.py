@@ -140,12 +140,6 @@ class RateDistortionLoss(nn.Module):
 
 
 
-    def forward(self, x: Tensor) -> Tensor:
-        # TODO(begaintj): weight assigment is not supported by torchscript
-        self.weight.data *= self.mask
-        return super().forward(x)
-
-
 
 def lower_bound_fwd(x: Tensor, bound: Tensor) -> Tensor:
     return torch.max(x, bound)
@@ -204,7 +198,7 @@ class PositionalEmbedder(nn.Module):
     """PyTorch implementation of regular positional embedding, as used in the original NeRF and Transformer papers.
     """
 
-    def __init__(self, num_freq, max_freq_log2, log_sampling=True, include_input=True, input_dim=3):
+    def __init__(self, num_freq, max_freq_log2, log_sampling=True, include_input=True, input_dim=2):
         """Initialize the module.
 
         Args:
@@ -223,9 +217,9 @@ class PositionalEmbedder(nn.Module):
         self.num_freq = num_freq
         self.max_freq_log2 = max_freq_log2
         self.log_sampling = log_sampling
-        self.include_input = include_input
         self.out_dim = 0
-        if include_input:
+        self.include_input = include_input
+        if self.include_input:
             self.out_dim += input_dim
 
         if self.log_sampling:
@@ -235,6 +229,7 @@ class PositionalEmbedder(nn.Module):
 
         # The out_dim is really just input_dim + num_freq * input_dim * 2 (for sin and cos)
         self.out_dim += self.bands.shape[0] * input_dim * 2
+
         self.bands = nn.Parameter(self.bands).requires_grad_(False)
 
     def forward(self, coords):
@@ -274,3 +269,34 @@ def get_positional_embedder(frequencies, active, input_dim=2):
     else:
         encoder = PositionalEmbedder(frequencies, frequencies - 1, input_dim=input_dim)
         return encoder, encoder.out_dim
+
+def psnr(img1, img2):
+    """Calculates PSNR between two images.
+
+    Args:
+        img1 (torch.Tensor):
+        img2 (torch.Tensor):
+    """
+    return 20. * np.log10(1.) - 10. * (img1 - img2).detach().pow(2).mean().log10().to('cpu').item()
+
+def clamp_image(img):
+    """Clamp image values to like in [0, 1] and convert to unsigned int.
+
+    Args:
+        img (torch.Tensor):
+    """
+    # Values may lie outside [0, 1], so clamp input
+    img_ = torch.clamp(img, 0., 1.)
+    # Pixel values lie in {0, ..., 255}, so round float tensor
+    return torch.round(img_ * 255) / 255.
+
+def get_clamped_psnr(img, img_recon):
+    """Get PSNR between true image and reconstructed image. As reconstructed
+    image comes from output of neural net, ensure that values like in [0, 1] and
+    are unsigned ints.
+
+    Args:
+        img (torch.Tensor): Ground truth image.
+        img_recon (torch.Tensor): Image reconstructed by model.
+    """
+    return psnr(img, clamp_image(img_recon))

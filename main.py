@@ -12,7 +12,7 @@ from utils import *
 import argparse
 from train_hybrid import Trainer
 import wandb
-
+from torch.nn.parameter import Parameter
 
 parser = argparse.ArgumentParser()
 parser.add_argument(
@@ -31,13 +31,13 @@ parser.add_argument(
     "--lr0",
     help="Learning rate of decoder",
     type=float,
-    default=2e-4,
+    default=5e-4,
 )
 parser.add_argument(
     "--lr1",
     help="Learning rate of latent code weight",
     type=float,
-    default=1e-4,
+    default=2e-4,
 )
 parser.add_argument(
     "--dim_hidden",
@@ -55,7 +55,7 @@ parser.add_argument(
     "--L",
     help="the Level of transmitting features",
     type=int,
-    default=7,
+    default=3,
 )
 parser.add_argument(
     "--model_path",
@@ -91,7 +91,7 @@ parser.add_argument(
 parser.add_argument(
     "--use_positional_info",
     type=int,
-    default=1,
+    default=0,
 )
 
 parser.add_argument(
@@ -103,7 +103,7 @@ parser.add_argument(
 parser.add_argument(
     "--use_wandb",
     type=int,
-    default=1,
+    default=0,
 )
 
 parser.add_argument(
@@ -166,14 +166,14 @@ for i in range(min_id, max_id + 1):
         out_dim = 0
     decoder = Decoder(args, device, out_dim).to(device)
     # varied learning rate
-    code_length = int((H * W) * (4 / 3) * (1 - (1 / 4 ** L)))
-    lat_layer = torch.nn.Embedding(1, code_length, max_norm=1)
-    lat_layer = lat_layer.to(device)
+    code_length = int(H * W * C)
+    # code_length = int((H * W) * (4 / 3) * (1 - (1 / 4 ** L)))
+    lat = Parameter(torch.randn(code_length, requires_grad=True).to(device))
     # weight initial
     torch.nn.init.normal_(
-        lat_layer.weight.data,
+        lat,
         0.0,
-        1.0 / math.sqrt(H * W),
+        1.0 / code_length,
     )
     rd_losses = RateDistortionLoss(args.lmbda)
     trainer = Trainer(
@@ -181,7 +181,7 @@ for i in range(min_id, max_id + 1):
         img,
         decoder,
         rd_losses,
-        lat_layer,
+        lat,
         args,
         print_freq=1,
         )
